@@ -3,24 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>存股回本連動計算機</title>
-  <!-- 引入 Chart.js 繪製折線圖 -->
+  <title>存股回本與殖利率連動計算機</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- 引入 Chart.js 註解外掛 (用來畫回本期垂直線) -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
   <style>
     :root {
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
-      --secondary: #64748b;
-      --secondary-hover: #475569;
       --bg: #f8fafc;
       --card: #ffffff;
       --border: #e2e8f0;
       --text: #1e293b;
       --muted: #64748b;
       --accent-green: #16a34a;
-      --accent-red: #dc2626;
+      --accent-amber: #d97706;
     }
 
     * {
@@ -37,11 +33,10 @@
     }
 
     .container {
-      max-width: 900px;
+      max-width: 920px;
       margin: 0 auto;
     }
 
-    /* 頂部標題與右上角按鈕列 */
     .header {
       display: flex;
       justify-content: space-between;
@@ -55,7 +50,7 @@
 
     .header h1 {
       margin: 0;
-      font-size: 1.6rem;
+      font-size: 1.55rem;
       color: var(--text);
     }
 
@@ -92,7 +87,6 @@
       background-color: #cbd5e1;
     }
 
-    /* 主卡片區塊 */
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -114,7 +108,6 @@
       margin: 0 0 18px 0;
     }
 
-    /* 雙欄版面：左輸入、右結果 */
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -135,7 +128,6 @@
       border-bottom: 1px dashed var(--border);
     }
 
-    /* 輸入框樣式 */
     .form-group {
       margin-bottom: 14px;
     }
@@ -161,20 +153,24 @@
       border-color: var(--primary);
     }
 
-    /* 計算結果卡片樣式 */
     .result-box {
       background-color: #f1f5f9;
       border-radius: 8px;
-      padding: 12px 16px;
-      margin-bottom: 12px;
+      padding: 11px 16px;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
-    .result-box.highlight {
-      background-color: #eff6ff;
-      border: 1px solid #bfdbfe;
+    .result-box.highlight-yield {
+      background-color: #fffbeb;
+      border: 1px solid #fde68a;
+    }
+
+    .result-box.highlight-payback {
+      background-color: #f0fdf4;
+      border: 1px solid #bbf7d0;
     }
 
     .result-label {
@@ -185,22 +181,25 @@
 
     .result-formula {
       display: block;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       color: var(--muted);
       font-weight: normal;
     }
 
     .result-value {
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       font-weight: 700;
       color: var(--primary);
+    }
+
+    .result-value.amber {
+      color: var(--accent-amber);
     }
 
     .result-value.green {
       color: var(--accent-green);
     }
 
-    /* 圖表容器 */
     .chart-wrapper {
       position: relative;
       height: 380px;
@@ -220,16 +219,14 @@
 </head>
 <body>
   <div class="container">
-    <!-- 網頁頂部標題與右上角選項 -->
     <div class="header">
-      <h1>📈 存股回本連動計算機</h1>
+      <h1>📈 存股回本與殖利率連動計算機</h1>
       <div class="btn-group">
         <button class="btn-example" onclick="loadExample()">💡 解說例子</button>
         <button class="btn-reset" onclick="resetZero()">🔄 全部歸0</button>
       </div>
     </div>
 
-    <!-- 連動計算表格區塊 -->
     <div class="card">
       <div class="card-title">📋 投資參數與自動試算表</div>
       <div class="card-subtitle">修改左側「可填寫欄位」，右側與下方折線圖將即時連動計算（台股 1 張 = 1,000 股）</div>
@@ -267,7 +264,7 @@
           <div class="result-box">
             <div>
               <span class="result-label">3. 需要投入金額</span>
-              <span class="result-formula">價格 × 張數 × 1,000股</span>
+              <span class="result-formula">股票價格 × 股票數量 × 1,000股</span>
             </div>
             <div class="result-value" id="totalCost">80,000 元</div>
           </div>
@@ -275,7 +272,7 @@
           <div class="result-box">
             <div>
               <span class="result-label">5. 股利領一次給多少</span>
-              <span class="result-formula">股利 × 張數 × 1,000股</span>
+              <span class="result-formula">股利 × 股票數量 × 1,000股</span>
             </div>
             <div class="result-value" id="divPerTime">1,380 元</div>
           </div>
@@ -283,15 +280,23 @@
           <div class="result-box">
             <div>
               <span class="result-label">7. 股利一年利息可以領多少</span>
-              <span class="result-formula">領一次金額 × 一年發幾次</span>
+              <span class="result-formula">股利領一次金額 × 一年發幾次</span>
             </div>
             <div class="result-value" id="annualDiv">16,560 元</div>
           </div>
 
-          <div class="result-box highlight">
+          <div class="result-box highlight-yield">
             <div>
-              <span class="result-label">8. 哪時候可以回本</span>
-              <span class="result-formula">投入金額 ÷ 一年利息</span>
+              <span class="result-label">8. 殖利率 (年化)</span>
+              <span class="result-formula">(每股每次股利 × 一年發幾次) ÷ 股票價格 × 100%</span>
+            </div>
+            <div class="result-value amber" id="dividendYield">20.70 %</div>
+          </div>
+
+          <div class="result-box highlight-payback">
+            <div>
+              <span class="result-label">9. 哪時候可以回本</span>
+              <span class="result-formula">需要投入金額 ÷ 股利一年利息</span>
             </div>
             <div class="result-value green" id="paybackYears">4.8 年</div>
           </div>
@@ -299,7 +304,6 @@
       </div>
     </div>
 
-    <!-- 網頁下方折線圖 -->
     <div class="card">
       <div class="card-title">📊 1 ~ 10 年累積領息與回本趨勢圖</div>
       <div class="card-subtitle">X 軸：時間 (1~10 年) ／ Y 軸：金額 (元) ／ 綠色虛線：回本時間點</div>
@@ -314,7 +318,6 @@
   <script>
     let chartInstance = null;
 
-    // 載入解說例子
     function loadExample() {
       document.getElementById("price").value = 8;
       document.getElementById("shares").value = 10;
@@ -323,7 +326,6 @@
       calculate();
     }
 
-    // 全部歸0
     function resetZero() {
       document.getElementById("price").value = 0;
       document.getElementById("shares").value = 0;
@@ -332,27 +334,28 @@
       calculate();
     }
 
-    // 核心連動計算與圖表更新
     function calculate() {
       const price = parseFloat(document.getElementById("price").value) || 0;
       const shares = parseFloat(document.getElementById("shares").value) || 0;
       const dividend = parseFloat(document.getElementById("dividend").value) || 0;
       const freq = parseFloat(document.getElementById("freq").value) || 0;
 
-      // 連動公式
+      // 核心計算邏輯
       const totalCost = price * shares * 1000;
       const divPerTime = dividend * shares * 1000;
       const annualDiv = divPerTime * freq;
+      const annualDivPerShare = dividend * freq;
+      const dividendYield = price > 0 ? (annualDivPerShare / price) * 100 : 0;
       const paybackYears = annualDiv > 0 ? totalCost / annualDiv : 0;
 
-      // 更新文字顯示
+      // 更新畫面數值
       document.getElementById("totalCost").textContent = `${Math.round(totalCost).toLocaleString()} 元`;
       document.getElementById("divPerTime").textContent = `${Math.round(divPerTime).toLocaleString()} 元`;
       document.getElementById("annualDiv").textContent = `${Math.round(annualDiv).toLocaleString()} 元`;
+      document.getElementById("dividendYield").textContent = `${dividendYield.toFixed(2)} %`;
       document.getElementById("paybackYears").textContent =
         annualDiv > 0 ? `${paybackYears.toFixed(1)} 年` : "0.0 年";
 
-      // 提示訊息 (若超過10年)
       const noticeEl = document.getElementById("overTenNotice");
       if (paybackYears > 10) {
         noticeEl.style.display = "block";
@@ -364,19 +367,17 @@
       updateChart(totalCost, annualDiv, paybackYears);
     }
 
-    // 繪製 / 更新 1~10 年折線圖
     function updateChart(totalCost, annualDiv, paybackYears) {
       const ctx = document.getElementById("paybackChart").getContext("2d");
       const years = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
       const cumulativeDiv = years.map((y) => Math.round(annualDiv * y));
       const costLine = years.map(() => Math.round(totalCost));
 
-      // 設定回本期垂直標記線 (介於 1~10 年才顯示在圖表內)
       const annotations = {};
       if (paybackYears > 0 && paybackYears <= 10) {
         annotations.paybackLine = {
           type: "line",
-          xMin: paybackYears - 1, // Chart.js category 軸索引從 0 開始 (0 代表第1年)
+          xMin: paybackYears - 1,
           xMax: paybackYears - 1,
           borderColor: "#16a34a",
           borderWidth: 2.5,
@@ -474,7 +475,6 @@
       });
     }
 
-    // 網頁開啟時預設載入「解說例子」
     window.onload = loadExample;
   </script>
 </body>
