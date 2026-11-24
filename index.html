@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>存股回本連動計算機</title>
+  <!-- 引入 Chart.js 繪製折線圖 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- 引入 Chart.js 註解外掛 (用來畫回本期垂直線) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --secondary: #64748b;
+      --secondary-hover: #475569;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --accent-green: #16a34a;
+      --accent-red: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: "Microsoft JhengHei", "PingFang TC", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* 頂部標題與右上角按鈕列 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      color: var(--text);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-example {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-example:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-reset {
+      background-color: #e2e8f0;
+      color: var(--text);
+    }
+
+    .btn-reset:hover {
+      background-color: #cbd5e1;
+    }
+
+    /* 主卡片區塊 */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 0 0 6px 0;
+    }
+
+    .card-subtitle {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin: 0 0 18px 0;
+    }
+
+    /* 雙欄版面：左輸入、右結果 */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 680px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .section-label {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    /* 輸入框樣式 */
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.92rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 1rem;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      border-color: var(--primary);
+    }
+
+    /* 計算結果卡片樣式 */
+    .result-box {
+      background-color: #f1f5f9;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .result-box.highlight {
+      background-color: #eff6ff;
+      border: 1px solid #bfdbfe;
+    }
+
+    .result-label {
+      font-size: 0.92rem;
+      color: #334155;
+      font-weight: 600;
+    }
+
+    .result-formula {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: normal;
+    }
+
+    .result-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .result-value.green {
+      color: var(--accent-green);
+    }
+
+    /* 圖表容器 */
+    .chart-wrapper {
+      position: relative;
+      height: 380px;
+      width: 100%;
+    }
+
+    .notice {
+      margin-top: 10px;
+      padding: 10px 14px;
+      background-color: #fef9c3;
+      color: #854d0e;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 網頁頂部標題與右上角選項 -->
+    <div class="header">
+      <h1>📈 存股回本連動計算機</h1>
+      <div class="btn-group">
+        <button class="btn-example" onclick="loadExample()">💡 解說例子</button>
+        <button class="btn-reset" onclick="resetZero()">🔄 全部歸0</button>
+      </div>
+    </div>
+
+    <!-- 連動計算表格區塊 -->
+    <div class="card">
+      <div class="card-title">📋 投資參數與自動試算表</div>
+      <div class="card-subtitle">修改左側「可填寫欄位」，右側與下方折線圖將即時連動計算（台股 1 張 = 1,000 股）</div>
+
+      <div class="grid-2">
+        <!-- 左側：可填寫欄位 -->
+        <div>
+          <div class="section-label">✏️ 可填寫欄位</div>
+
+          <div class="form-group">
+            <label for="price">1. 股票價格 (元)</label>
+            <input type="number" id="price" min="0" step="0.1" oninput="calculate()" />
+          </div>
+
+          <div class="form-group">
+            <label for="shares">2. 股票數量 (張)</label>
+            <input type="number" id="shares" min="0" step="1" oninput="calculate()" />
+          </div>
+
+          <div class="form-group">
+            <label for="dividend">4. 股利 / 每股每次發放 (元)</label>
+            <input type="number" id="dividend" min="0" step="0.001" oninput="calculate()" />
+          </div>
+
+          <div class="form-group">
+            <label for="freq">6. 股利一年會發幾次 (次)</label>
+            <input type="number" id="freq" min="0" step="1" oninput="calculate()" />
+          </div>
+        </div>
+
+        <!-- 右側：自動計算結果 -->
+        <div>
+          <div class="section-label">🧮 自動計算結果</div>
+
+          <div class="result-box">
+            <div>
+              <span class="result-label">3. 需要投入金額</span>
+              <span class="result-formula">價格 × 張數 × 1,000股</span>
+            </div>
+            <div class="result-value" id="totalCost">80,000 元</div>
+          </div>
+
+          <div class="result-box">
+            <div>
+              <span class="result-label">5. 股利領一次給多少</span>
+              <span class="result-formula">股利 × 張數 × 1,000股</span>
+            </div>
+            <div class="result-value" id="divPerTime">1,380 元</div>
+          </div>
+
+          <div class="result-box">
+            <div>
+              <span class="result-label">7. 股利一年利息可以領多少</span>
+              <span class="result-formula">領一次金額 × 一年發幾次</span>
+            </div>
+            <div class="result-value" id="annualDiv">16,560 元</div>
+          </div>
+
+          <div class="result-box highlight">
+            <div>
+              <span class="result-label">8. 哪時候可以回本</span>
+              <span class="result-formula">投入金額 ÷ 一年利息</span>
+            </div>
+            <div class="result-value green" id="paybackYears">4.8 年</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 網頁下方折線圖 -->
+    <div class="card">
+      <div class="card-title">📊 1 ~ 10 年累積領息與回本趨勢圖</div>
+      <div class="card-subtitle">X 軸：時間 (1~10 年) ／ Y 軸：金額 (元) ／ 綠色虛線：回本時間點</div>
+
+      <div class="chart-wrapper">
+        <canvas id="paybackChart"></canvas>
+      </div>
+      <div id="overTenNotice" class="notice"></div>
+    </div>
+  </div>
+
+  <script>
+    let chartInstance = null;
+
+    // 載入解說例子
+    function loadExample() {
+      document.getElementById("price").value = 8;
+      document.getElementById("shares").value = 10;
+      document.getElementById("dividend").value = 0.138;
+      document.getElementById("freq").value = 12;
+      calculate();
+    }
+
+    // 全部歸0
+    function resetZero() {
+      document.getElementById("price").value = 0;
+      document.getElementById("shares").value = 0;
+      document.getElementById("dividend").value = 0;
+      document.getElementById("freq").value = 0;
+      calculate();
+    }
+
+    // 核心連動計算與圖表更新
+    function calculate() {
+      const price = parseFloat(document.getElementById("price").value) || 0;
+      const shares = parseFloat(document.getElementById("shares").value) || 0;
+      const dividend = parseFloat(document.getElementById("dividend").value) || 0;
+      const freq = parseFloat(document.getElementById("freq").value) || 0;
+
+      // 連動公式
+      const totalCost = price * shares * 1000;
+      const divPerTime = dividend * shares * 1000;
+      const annualDiv = divPerTime * freq;
+      const paybackYears = annualDiv > 0 ? totalCost / annualDiv : 0;
+
+      // 更新文字顯示
+      document.getElementById("totalCost").textContent = `${Math.round(totalCost).toLocaleString()} 元`;
+      document.getElementById("divPerTime").textContent = `${Math.round(divPerTime).toLocaleString()} 元`;
+      document.getElementById("annualDiv").textContent = `${Math.round(annualDiv).toLocaleString()} 元`;
+      document.getElementById("paybackYears").textContent =
+        annualDiv > 0 ? `${paybackYears.toFixed(1)} 年` : "0.0 年";
+
+      // 提示訊息 (若超過10年)
+      const noticeEl = document.getElementById("overTenNotice");
+      if (paybackYears > 10) {
+        noticeEl.style.display = "block";
+        noticeEl.textContent = `💡 目前計算回本期約為 ${paybackYears.toFixed(1)} 年，超過下方圖表顯示的 10 年範圍。`;
+      } else {
+        noticeEl.style.display = "none";
+      }
+
+      updateChart(totalCost, annualDiv, paybackYears);
+    }
+
+    // 繪製 / 更新 1~10 年折線圖
+    function updateChart(totalCost, annualDiv, paybackYears) {
+      const ctx = document.getElementById("paybackChart").getContext("2d");
+      const years = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      const cumulativeDiv = years.map((y) => Math.round(annualDiv * y));
+      const costLine = years.map(() => Math.round(totalCost));
+
+      // 設定回本期垂直標記線 (介於 1~10 年才顯示在圖表內)
+      const annotations = {};
+      if (paybackYears > 0 && paybackYears <= 10) {
+        annotations.paybackLine = {
+          type: "line",
+          xMin: paybackYears - 1, // Chart.js category 軸索引從 0 開始 (0 代表第1年)
+          xMax: paybackYears - 1,
+          borderColor: "#16a34a",
+          borderWidth: 2.5,
+          borderDash: [6, 6],
+          label: {
+            display: true,
+            content: `🎯 回本期：${paybackYears.toFixed(1)} 年`,
+            position: "start",
+            backgroundColor: "#16a34a",
+            color: "#ffffff",
+            font: { size: 12, weight: "bold" },
+            padding: 6,
+            borderRadius: 6,
+          },
+        };
+      }
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: years.map((y) => `${y} 年`),
+          datasets: [
+            {
+              label: "累積領取股利 (元)",
+              data: cumulativeDiv,
+              borderColor: "#2563eb",
+              backgroundColor: "rgba(37, 99, 235, 0.12)",
+              borderWidth: 3,
+              pointRadius: 5,
+              pointBackgroundColor: "#2563eb",
+              fill: true,
+              tension: 0.1,
+            },
+            {
+              label: `投入本金 (${Math.round(totalCost).toLocaleString()} 元)`,
+              data: costLine,
+              borderColor: "#dc2626",
+              borderWidth: 2,
+              borderDash: [6, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: "top",
+              labels: { font: { size: 13 } },
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  return `${context.dataset.label}：${context.parsed.y.toLocaleString()} 元`;
+                },
+              },
+            },
+            annotation: {
+              annotations: annotations,
+            },
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: "時間 (年)",
+                font: { size: 13, weight: "bold" },
+              },
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: "金額 (元)",
+                font: { size: 13, weight: "bold" },
+              },
+              ticks: {
+                callback: function (value) {
+                  return value.toLocaleString() + " 元";
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // 網頁開啟時預設載入「解說例子」
+    window.onload = loadExample;
+  </script>
+</body>
+</html>
